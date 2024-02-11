@@ -12,22 +12,30 @@ from DehazeDataset import DehazingDataset, DatasetType
 from PIL import Image
 import cv2
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_built() else 'cpu')
+device = torch.device(
+    "cuda"
+    if torch.cuda.is_available()
+    else "mps" if torch.backends.mps.is_built() else "cpu"
+)
+
 
 def weights_init(m):
     classname = m.__class__.__name__
-    if classname.find('Conv') != -1:
+    if classname.find("Conv") != -1:
         m.weight.data.normal_(0.0, 0.02)
-    elif classname.find('BatchNorm') != -1:
+    elif classname.find("BatchNorm") != -1:
         m.weight.data.normal_(1.0, 0.02)
         m.bias.data.fill_(0)
+
 
 def Preprocess(image: Image.Image) -> torch.Tensor:
     # Contrast Enhancement
     transform = transforms.Compose(
         [
             transforms.PILToTensor(),
-            transforms.ColorJitter(brightness=0.05, contrast=0.05, saturation=0.05, hue=0.05)
+            transforms.ColorJitter(
+                brightness=0.05, contrast=0.05, saturation=0.05, hue=0.05
+            ),
             # transforms.functional.equalize
         ]
     )
@@ -42,79 +50,111 @@ def Preprocess(image: Image.Image) -> torch.Tensor:
     stretchedImage = (gammaCorrectedImage - min_val) / (max_val - min_val)
 
     # Guided Filtering
-    gFilter = cv2.ximgproc.createGuidedFilter(guide=stretchedImage.permute(1, 2, 0).numpy(), radius=3, eps=0.01)
+    gFilter = cv2.ximgproc.createGuidedFilter(
+        guide=stretchedImage.permute(1, 2, 0).numpy(), radius=3, eps=0.01
+    )
     filteredImage = gFilter.filter(src=stretchedImage.permute(1, 2, 0).numpy())
     return torch.from_numpy(filteredImage).permute(2, 0, 1)
 
+
 def train(args):
+    ld_net = lightdehazeNet.LightDehaze_Net().to(device)
+    ld_net.apply(weights_init)
 
-	ld_net = lightdehazeNet.LightDehaze_Net().to(device)
-	ld_net.apply(weights_init)
+    parentPath = pathlib.Path(args["dataset"])
+    dehazingDatasetPath = parentPath / "SS594_Multispectral_Dehazing/Haze1k/Haze1k"
 
-	parentPath = pathlib.Path(args["dataset"])
-	dehazingDatasetPath = parentPath / 'SS594_Multispectral_Dehazing/Haze1k/Haze1k'
+    training_data = DehazingDataset(
+        dehazingDatasetPath=dehazingDatasetPath,
+        _type=DatasetType.Train,
+        transformFn=Preprocess,
+        verbose=False,
+    )
+    validation_data = DehazingDataset(
+        dehazingDatasetPath=dehazingDatasetPath,
+        _type=DatasetType.Validation,
+        transformFn=Preprocess,
+        verbose=False,
+    )
 
-	training_data = DehazingDataset(dehazingDatasetPath=dehazingDatasetPath, _type=DatasetType.Train, transformFn=Preprocess, verbose=False)
-	validation_data = DehazingDataset(dehazingDatasetPath=dehazingDatasetPath, _type=DatasetType.Validation, transformFn=Preprocess, verbose=False)
+    training_data_loader = torch.utils.data.DataLoader(
+        training_data, batch_size=8, shuffle=True, num_workers=4, pin_memory=True
+    )
+    validation_data_loader = torch.utils.data.DataLoader(
+        validation_data, batch_size=8, shuffle=True, num_workers=4, pin_memory=True
+    )
 
-	training_data_loader = torch.utils.data.DataLoader(training_data, batch_size=8, shuffle=True, num_workers=4, pin_memory=True)
-	validation_data_loader = torch.utils.data.DataLoader(validation_data, batch_size=8, shuffle=True, num_workers=4, pin_memory=True)
+    criterion = nn.MSELoss().to(device)
+    optimizer = torch.optim.Adam(
+        ld_net.parameters(), lr=float(args["learning_rate"]), weight_decay=0.0001
+    )
 
-	criterion = nn.MSELoss().to(device)
-	optimizer = torch.optim.Adam(ld_net.parameters(), lr=float(args["learning_rate"]), weight_decay=0.0001)
-	
-	ld_net.train()
+    ld_net.train()
 
-	num_of_epochs = int(args["epochs"])
-	for epoch in range(num_of_epochs):
-		for iteration, (hazefree_image, hazy_image) in enumerate(training_data_loader):
+    print("Started Training...")
 
-			hazefree_image = hazefree_image.to(device)
-			hazy_image = hazy_image.to(device)
+    num_of_epochs = int(args["epochs"])
+    for epoch in range(num_of_epochs):
+        print(f"Epoch {epoch + 1}/{num_of_epochs}")
 
-			dehaze_image = ld_net(hazy_image)
+        for iteration, (hazefree_image, hazy_image) in enumerate(training_data_loader):
+            hazefree_image = hazefree_image.to(device)
+            hazy_image = hazy_image.to(device)
 
-			loss = criterion(dehaze_image, hazefree_image)
+            dehaze_image = ld_net(hazy_image)
 
-			optimizer.zero_grad()
-			loss.backward()
-			torch.nn.utils.clip_grad_norm(ld_net.parameters(),0.1)
-			optimizer.step()
+            loss = criterion(dehaze_image, hazefree_image)
 
-			if ((iteration+1) % 10) == 0:
-				print("Loss at iteration", iteration+1, ":", loss.item())
-			if ((iteration+1) % 200) == 0:
-				
-				torch.save(ld_net.state_dict(), "trained_weights/" + "Epoch" + str(epoch) + '.pth') 		
+            optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(ld_net.parameters(), 0.1)
+            optimizer.step()
 
-		# Validation Stage
-		for iter_val, (hazefree_image, hazy_image) in enumerate(validation_data_loader):
+            if ((iteration + 1) % 10) == 0:
+                print(f"\tStep {iteration + 1}: Loss - {loss.item()}")
 
-			hazefree_image = hazefree_image.to(device)
-			hazy_image = hazy_image.to(device)
+            if ((iteration + 1) % 200) == 0:
+                print("Saving Model...")
+                torch.save(
+                    ld_net.state_dict(),
+                    "trained_weights/" + "Epoch" + str(epoch) + ".pth",
+                )
 
-			dehaze_image = ld_net(hazy_image)
+        # Validation Stage
+        print("Saving Validation Images...")
 
-			torchvision.utils.save_image(torch.cat((hazy_image, dehaze_image, hazefree_image),0), "training_data_captures/" +str(iter_val+1)+".jpg")
+        for iter_val, (hazefree_image, hazy_image) in enumerate(validation_data_loader):
+            hazefree_image = hazefree_image.to(device)
+            hazy_image = hazy_image.to(device)
 
-		torch.save(ld_net.state_dict(), "trained_weights/" + "trained_LDNet.pth") 
+            dehaze_image = ld_net(hazy_image)
+
+            torchvision.utils.save_image(
+                torch.cat((hazy_image, dehaze_image, hazefree_image), 0),
+                "training_data_captures/"
+                + f"Epoch_{epoch}_Step_{str(iter_val+1)}"
+                + ".jpg",
+            )
+
+        torch.save(ld_net.state_dict(), "trained_weights/" + "trained_LDNet.pth")
+
 
 if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument(
+        "-d",
+        "--dataset",
+        required=False,
+        help="path to the parent folder of SS594_Multispectral_Dehazing",
+        default="/Users/flameberry/Developer/Dehazing/dataset",
+    )
+    ap.add_argument(
+        "-e", "--epochs", required=True, help="number of epochs for training"
+    )
+    ap.add_argument(
+        "-lr", "--learning_rate", required=True, help="learning rate for training"
+    )
 
-	ap = argparse.ArgumentParser()
-	ap.add_argument("-d", "--dataset", required=False, help="path to the parent folder of SS594_Multispectral_Dehazing", default="/Users/flameberry/Developer/Dehazing/dataset")
-	ap.add_argument("-e", "--epochs", required=True, help="number of epochs for training")
-	ap.add_argument("-lr", "--learning_rate", required=True, help="learning rate for training")
-	
-	args = vars(ap.parse_args())
+    args = vars(ap.parse_args())
 
-	train(args)
-
-
-
-
-
-
-
-
-	
+    train(args)

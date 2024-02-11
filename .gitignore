@@ -3,6 +3,7 @@ dataset/**
 output/**
 saved_models/**
 summary/**
+training_data_captures/
 
 .DS_Store
 

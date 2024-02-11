@@ -1,4 +1,8 @@
 # Light-DehazeNet
+
+<details>
+<summary>Original README</summary>
+
 Light-DehazeNet: A Novel Lightweight CNN Architecture for Single Image Dehazing [Paper](https://ieeexplore.ieee.org/abstract/document/9562276)
 
 ![](readme_images/framework.png)
@@ -103,3 +107,4 @@ Ullah, H., Muhammad, K., Irfan, M., Anwar, S., Sajjad, M., Imran, A. S., & De Al
 "Light-DehazeNet: A Novel Lightweight CNN Architecture for Single Image Dehazing", 
 IEEE Transactions on Image Processing, 2021.
 ```
+</details>
