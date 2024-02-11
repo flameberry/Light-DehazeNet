@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 import torchvision
@@ -11,6 +12,8 @@ import pathlib
 from DehazeDataset import DehazingDataset, DatasetType
 from PIL import Image
 import cv2
+
+from torchmetrics.image import StructuralSimilarityIndexMeasure, PeakSignalNoiseRatio
 
 device = torch.device(
     "cuda"
@@ -89,14 +92,13 @@ def train(args):
         ld_net.parameters(), lr=float(args["learning_rate"]), weight_decay=0.0001
     )
 
-    ld_net.train()
-
     print("Started Training...")
 
     num_of_epochs = int(args["epochs"])
     for epoch in range(num_of_epochs):
         print(f"Epoch {epoch + 1}/{num_of_epochs}")
 
+        ld_net.train()
         for iteration, (hazefree_image, hazy_image) in enumerate(training_data_loader):
             hazefree_image = hazefree_image.to(device)
             hazy_image = hazy_image.to(device)
@@ -123,17 +125,37 @@ def train(args):
         # Validation Stage
         print("Saving Validation Images...")
 
+        print("SSIM\tSSIM_Previous\tPSNR\tPSNR_Previous")
+
+        ld_net.eval()
         for iter_val, (hazefree_image, hazy_image) in enumerate(validation_data_loader):
             hazefree_image = hazefree_image.to(device)
             hazy_image = hazy_image.to(device)
 
             dehaze_image = ld_net(hazy_image)
 
-            torchvision.utils.save_image(
-                torch.cat((hazy_image, dehaze_image, hazefree_image), 0),
+            # Calculate and print the SSIM
+            ssim = StructuralSimilarityIndexMeasure().to(device)
+            ssim_val = ssim(dehaze_image, hazefree_image)
+            ssim_fake_val = ssim(hazy_image, hazefree_image)
+
+            # Calculate and print the PSNR
+            psnr = PeakSignalNoiseRatio().to(device)
+            psnr_val = psnr(dehaze_image, hazefree_image)
+            psnr_fake_val = psnr(hazy_image, hazefree_image)
+
+            print(
+                f"{ssim_val:.4f}\t|\t{ssim_fake_val:.4f}\t|\t{psnr_val:.4f}\t|\t{psnr_fake_val:.4f}"
+            )
+
+            save_path = (
                 "training_data_captures/"
                 + f"Epoch_{epoch}_Step_{str(iter_val+1)}"
-                + ".jpg",
+                + ".jpg"
+            )
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            torchvision.utils.save_image(
+                torch.cat((hazy_image, dehaze_image, hazefree_image), 0), save_path
             )
 
         torch.save(ld_net.state_dict(), "trained_weights/" + "trained_LDNet.pth")

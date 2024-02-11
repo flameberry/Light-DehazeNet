@@ -4,6 +4,7 @@ output/**
 saved_models/**
 summary/**
 training_data_captures/
+visual_results/
 
 .DS_Store
 

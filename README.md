@@ -1,5 +1,15 @@
 # Light-DehazeNet
 
+For Training on the Haze1K Training Dataset
+```sh
+python run_experiment.py -d "<path/to/parent/of/SS594_Multispectral_Dehazing/folder>" -e 10 -lr 0.001
+```
+
+For Inference on the Haze1K Testing Dataset
+```sh
+python muliple_test_inference.py --infer -d "<path/to/parent/of/SS594_Multispectral_Dehazing/folder>"
+```
+
 <details>
 <summary>Original README</summary>
 
