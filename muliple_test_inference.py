@@ -1,4 +1,4 @@
-from inference import image_haze_removel
+from inference import image_haze_removal
 from PIL import Image
 import torchvision
 import os
@@ -22,7 +22,7 @@ def multiple_dehaze_test(directory):
     c=0
     for i in range(len(images)):
         img = images[i]
-        dehaze_image = image_haze_removel(img)
+        dehaze_image = image_haze_removal(img)
         torchvision.utils.save_image(dehaze_image, "vis_results/dehaze_img("+str(c+1)+").jpg")
         c=c+1
     

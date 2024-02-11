@@ -1,7 +1,5 @@
-# @author: hayat
 import torch
 import torch.nn as nn
-import math
 
 class LightDehaze_Net(nn.Module):
 
@@ -49,19 +47,4 @@ class LightDehaze_Net(nn.Module):
 		dehaze_image = self.relu((conv_layer8 * img) - conv_layer8 + 1) 
 		#J(x) = clean_image, k(x) = x8, I(x) = x, b = 1
 		
-		
 		return dehaze_image 
-
-		
-
-
-			
-
-			
-			
-
-
-
-
-
-

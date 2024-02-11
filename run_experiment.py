@@ -3,15 +3,16 @@ import torch.nn as nn
 import torchvision
 import torch.backends.cudnn as cudnn
 import torch.optim
-import os
-import sys
 import argparse
-import time
-import image_data_loader
 import lightdehazeNet
-import numpy as np
 from torchvision import transforms
+import pathlib
 
+from DehazeDataset import DehazingDataset, DatasetType
+from PIL import Image
+import cv2
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_built() else 'cpu')
 
 def weights_init(m):
     classname = m.__class__.__name__
@@ -21,20 +22,45 @@ def weights_init(m):
         m.weight.data.normal_(1.0, 0.02)
         m.bias.data.fill_(0)
 
+def Preprocess(image: Image.Image) -> torch.Tensor:
+    # Contrast Enhancement
+    transform = transforms.Compose(
+        [
+            transforms.PILToTensor(),
+            transforms.ColorJitter(brightness=0.05, contrast=0.05, saturation=0.05, hue=0.05)
+            # transforms.functional.equalize
+        ]
+    )
+    transformedImage = transform(image)
+
+    # Gamma Correction
+    gammaCorrectedImage = transforms.functional.adjust_gamma(transformedImage, 2.2)
+
+    # Histogram Stretching
+    min_val = gammaCorrectedImage.min()
+    max_val = gammaCorrectedImage.max()
+    stretchedImage = (gammaCorrectedImage - min_val) / (max_val - min_val)
+
+    # Guided Filtering
+    gFilter = cv2.ximgproc.createGuidedFilter(guide=stretchedImage.permute(1, 2, 0).numpy(), radius=3, eps=0.01)
+    filteredImage = gFilter.filter(src=stretchedImage.permute(1, 2, 0).numpy())
+    return torch.from_numpy(filteredImage).permute(2, 0, 1)
 
 def train(args):
 
-	ld_net = lightdehazeNet.LightDehaze_Net().cuda()
+	ld_net = lightdehazeNet.LightDehaze_Net().to(device)
 	ld_net.apply(weights_init)
 
-	training_data = image_data_loader.hazy_data_loader(args["train_original"],
-											 args["train_hazy"])		
-	validation_data = image_data_loader.hazy_data_loader(args["train_original"],
-											 args["train_hazy"], mode="val")		
+	parentPath = pathlib.Path(args["dataset"])
+	dehazingDatasetPath = parentPath / 'SS594_Multispectral_Dehazing/Haze1k/Haze1k'
+
+	training_data = DehazingDataset(dehazingDatasetPath=dehazingDatasetPath, _type=DatasetType.Train, transformFn=Preprocess, verbose=False)
+	validation_data = DehazingDataset(dehazingDatasetPath=dehazingDatasetPath, _type=DatasetType.Validation, transformFn=Preprocess, verbose=False)
+
 	training_data_loader = torch.utils.data.DataLoader(training_data, batch_size=8, shuffle=True, num_workers=4, pin_memory=True)
 	validation_data_loader = torch.utils.data.DataLoader(validation_data, batch_size=8, shuffle=True, num_workers=4, pin_memory=True)
 
-	criterion = nn.MSELoss().cuda()
+	criterion = nn.MSELoss().to(device)
 	optimizer = torch.optim.Adam(ld_net.parameters(), lr=float(args["learning_rate"]), weight_decay=0.0001)
 	
 	ld_net.train()
@@ -43,8 +69,8 @@ def train(args):
 	for epoch in range(num_of_epochs):
 		for iteration, (hazefree_image, hazy_image) in enumerate(training_data_loader):
 
-			hazefree_image = hazefree_image.cuda()
-			hazy_image = hazy_image.cuda()
+			hazefree_image = hazefree_image.to(device)
+			hazy_image = hazy_image.to(device)
 
 			dehaze_image = ld_net(hazy_image)
 
@@ -64,8 +90,8 @@ def train(args):
 		# Validation Stage
 		for iter_val, (hazefree_image, hazy_image) in enumerate(validation_data_loader):
 
-			hazefree_image = hazefree_image.cuda()
-			hazy_image = hazy_image.cuda()
+			hazefree_image = hazefree_image.to(device)
+			hazy_image = hazy_image.to(device)
 
 			dehaze_image = ld_net(hazy_image)
 
@@ -76,8 +102,7 @@ def train(args):
 if __name__ == "__main__":
 
 	ap = argparse.ArgumentParser()
-	ap.add_argument("-th", "--train_hazy", required=True, help="path to hazy training images")
-	ap.add_argument("-to", "--train_original", required=True, help="path to original training images")
+	ap.add_argument("-d", "--dataset", required=False, help="path to the parent folder of SS594_Multispectral_Dehazing", default="/Users/flameberry/Developer/Dehazing/dataset")
 	ap.add_argument("-e", "--epochs", required=True, help="number of epochs for training")
 	ap.add_argument("-lr", "--learning_rate", required=True, help="learning rate for training")
 	

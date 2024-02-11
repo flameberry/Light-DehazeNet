@@ -1,19 +1,13 @@
-# @author: hayat
-import os
-import sys
 import torch
 import torch.utils.data as data
 import numpy as np
 from PIL import Image
 import glob
 import random
-import cv2
 
 random.seed(1143)
 
-
 def preparing_training_data(hazefree_images_dir, hazeeffected_images_dir):
-
 
 	train_data = []
 	validation_data = []

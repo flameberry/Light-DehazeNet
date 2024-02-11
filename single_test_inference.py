@@ -1,11 +1,11 @@
 import torchvision
 from PIL import Image
-from inference import image_haze_removel
+from inference import image_haze_removal
 import argparse
 
 def single_dehaze_test(input):
     hazy_input_image = Image.open(input)
-    dehaze_image = image_haze_removel(hazy_input_image)
+    dehaze_image = image_haze_removal(hazy_input_image)
     torchvision.utils.save_image(dehaze_image, "dehaze.jpg")
 
 if __name__ == "__main__":
