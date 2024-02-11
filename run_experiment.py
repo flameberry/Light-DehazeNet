@@ -1,4 +1,5 @@
 import os
+from matplotlib import pyplot as plt
 import torch
 import torch.nn as nn
 import torchvision
@@ -94,6 +95,8 @@ def train(args):
 
     print("Started Training...")
 
+    losses = []
+
     num_of_epochs = int(args["epochs"])
     for epoch in range(num_of_epochs):
         print(f"Epoch {epoch + 1}/{num_of_epochs}")
@@ -106,6 +109,8 @@ def train(args):
             dehaze_image = ld_net(hazy_image)
 
             loss = criterion(dehaze_image, hazefree_image)
+
+            losses.append(loss)
 
             optimizer.zero_grad()
             loss.backward()
@@ -159,6 +164,11 @@ def train(args):
             )
 
         torch.save(ld_net.state_dict(), "trained_weights/" + "trained_LDNet.pth")
+
+    # Store the graph of the loss
+    plt.plot(losses)
+    plt.savefig("LossPlot.png")
+    # plt.show()
 
 
 if __name__ == "__main__":

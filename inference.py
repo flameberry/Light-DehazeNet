@@ -1,5 +1,6 @@
 import os
 import pathlib
+from matplotlib import pyplot as plt
 import torch, torchvision
 import torch.optim
 import lightdehazeNet
@@ -51,6 +52,14 @@ def inference(args):
 
     print(len(testing_data_loader))
 
+    ssim_old_values = []
+    ssim_values = []
+    psnr_old_values = []
+    psnr_values = []
+
+    ssim = StructuralSimilarityIndexMeasure().to(device)
+    psnr = PeakSignalNoiseRatio().to(device)
+
     ld_net.eval()
     for iter_val, (hazefree_image, hazy_image) in enumerate(testing_data_loader):
         hazefree_image = hazefree_image.to(device)
@@ -59,14 +68,16 @@ def inference(args):
         dehaze_image = ld_net(hazy_image)
 
         # Calculate and print the SSIM
-        ssim = StructuralSimilarityIndexMeasure().to(device)
         ssim_val = ssim(dehaze_image, hazefree_image)
         ssim_fake_val = ssim(hazy_image, hazefree_image)
+        ssim_values.append(ssim_val)
+        ssim_old_values.append(ssim_fake_val)
 
         # Calculate and print the PSNR
-        psnr = PeakSignalNoiseRatio().to(device)
         psnr_val = psnr(dehaze_image, hazefree_image)
         psnr_fake_val = psnr(hazy_image, hazefree_image)
+        psnr_values.append(psnr_val)
+        psnr_old_values.append(psnr_fake_val)
 
         print(
             f"{ssim_val:.4f}\t|\t{ssim_fake_val:.4f}\t|\t{psnr_val:.4f}\t|\t{psnr_fake_val:.4f}"
@@ -78,3 +89,14 @@ def inference(args):
             torch.cat((hazy_image, dehaze_image, hazefree_image), 0),
             save_path,
         )
+
+    fig_, ax_ = ssim.plot(ssim_values)
+    fig_, ax_ = ssim.plot(ssim_old_values, ax=ax_)
+    plt.savefig("Inference_SSIM.png")
+
+    fig_, ax_1 = psnr.plot(psnr_values)
+    fig_, ax_1 = psnr.plot(psnr_old_values, ax=ax_1)
+    plt.savefig("Inference_PSNR.png")
+
+    # Plot the ssim and psnr
+    plt.show()

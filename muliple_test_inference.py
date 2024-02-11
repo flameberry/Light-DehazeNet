@@ -1,3 +1,4 @@
+import torch
 from inference import image_haze_removal, inference
 from PIL import Image
 import torchvision
@@ -26,6 +27,11 @@ def multiple_dehaze_test(directory):
 
 
 if __name__ == "__main__":
+    if torch.backends.mps.is_built():
+        torch.mps.empty_cache()
+    elif torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
     ap = argparse.ArgumentParser()
     ap.add_argument(
         "-td", "--test_directory", required=False, help="path to test images directory"
