@@ -88,7 +88,16 @@ def train(args):
         validation_data, batch_size=8, shuffle=True, num_workers=4, pin_memory=True
     )
 
-    criterion = nn.MSELoss().to(device)
+    class SSIMLoss(StructuralSimilarityIndexMeasure):
+        def forward(self, x, y):
+            return 1.0 - super().forward(x, y)
+
+    class PSNRLoss(PeakSignalNoiseRatio):
+        def forward(self, x, y):
+            return -super().forward(x, y)
+
+    # criterion = nn.MSELoss().to(device)
+    criterion = PSNRLoss().to(device)
     optimizer = torch.optim.Adam(
         ld_net.parameters(), lr=float(args["learning_rate"]), weight_decay=0.0001
     )
@@ -118,7 +127,7 @@ def train(args):
             optimizer.step()
 
             if ((iteration + 1) % 10) == 0:
-                print(f"\tStep {iteration + 1}: Loss - {loss.item()}")
+                print(f"\tStep {iteration + 1}: Loss -> {loss.item()}")
 
             if ((iteration + 1) % 200) == 0:
                 print("Saving Model...")
@@ -166,7 +175,7 @@ def train(args):
         torch.save(ld_net.state_dict(), "trained_weights/" + "trained_LDNet.pth")
 
     # Store the graph of the loss
-    plt.plot(losses)
+    plt.plot([loss.cpu() for loss in losses])
     plt.savefig("LossPlot.png")
     # plt.show()
 
