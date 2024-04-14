@@ -26,6 +26,7 @@ class DehazingDataset(Dataset):
         self,
         dehazingDatasetPath: pathlib.Path,
         _type: DatasetType,
+        split: float = 0.8,
         transformFn=None,
         verbose: bool = False,
     ):
@@ -35,32 +36,80 @@ class DehazingDataset(Dataset):
         self.__HazyImages = []
         self.__ClearImages = []
 
-        for variant in ("Haze1k_thin", "Haze1k_moderate", "Haze1k_thick"):
-            inputPath = (
-                self.__DehazingDatasetPath
-                / variant
-                / "dataset"
-                / _type.ToString()
-                / "input"
-            )
-            targetPath = (
-                self.__DehazingDatasetPath
-                / variant
-                / "dataset"
-                / _type.ToString()
-                / "target"
-            )
+        variants = ("Haze1k_thin", "Haze1k_moderate", "Haze1k_thick")
+        # variants = ("Haze1k_thin",)
 
-            self.__HazyImages += [
-                inputPath / filename
-                for filename in sorted(os.listdir(inputPath))
-                if filename.lower().endswith((".png", ".jpg", ".jpeg", ".tiff", ".bmp"))
-            ]
-            self.__ClearImages += [
-                targetPath / filename
-                for filename in sorted(os.listdir(targetPath))
-                if filename.lower().endswith((".png", ".jpg", ".jpeg", ".tiff", ".bmp"))
-            ]
+        if _type == DatasetType.Validation:
+            for variant in variants:
+                inputPath = (
+                    self.__DehazingDatasetPath / variant / "dataset" / "val" / "input"
+                )
+                targetPath = (
+                    self.__DehazingDatasetPath / variant / "dataset" / "val" / "target"
+                )
+
+                self.__HazyImages += [
+                    inputPath / filename
+                    for filename in sorted(os.listdir(inputPath))
+                    if filename.lower().endswith(
+                        (".png", ".jpg", ".jpeg", ".tiff", ".bmp")
+                    )
+                ]
+                self.__ClearImages += [
+                    targetPath / filename
+                    for filename in sorted(os.listdir(targetPath))
+                    if filename.lower().endswith(
+                        (".png", ".jpg", ".jpeg", ".tiff", ".bmp")
+                    )
+                ]
+        else:
+            # for variant in ("Haze1k_thin", "Haze1k_moderate", "Haze1k_thick"):
+            for type in ("train", "test"):
+                for variant in variants:
+                    inputPath = (
+                        self.__DehazingDatasetPath
+                        / variant
+                        / "dataset"
+                        / type
+                        / "input"
+                    )
+                    targetPath = (
+                        self.__DehazingDatasetPath
+                        / variant
+                        / "dataset"
+                        / type
+                        / "target"
+                    )
+
+                    self.__HazyImages += [
+                        inputPath / filename
+                        for filename in sorted(os.listdir(inputPath))
+                        if filename.lower().endswith(
+                            (".png", ".jpg", ".jpeg", ".tiff", ".bmp")
+                        )
+                    ]
+                    self.__ClearImages += [
+                        targetPath / filename
+                        for filename in sorted(os.listdir(targetPath))
+                        if filename.lower().endswith(
+                            (".png", ".jpg", ".jpeg", ".tiff", ".bmp")
+                        )
+                    ]
+
+            if _type == DatasetType.Train:
+                self.__HazyImages = self.__HazyImages[
+                    : int(split * len(self.__HazyImages))
+                ]
+                self.__ClearImages = self.__ClearImages[
+                    : int(split * len(self.__ClearImages))
+                ]
+            elif _type == DatasetType.Test:
+                self.__HazyImages = self.__HazyImages[
+                    int(split * len(self.__HazyImages)) :
+                ]
+                self.__ClearImages = self.__ClearImages[
+                    int(split * len(self.__ClearImages)) :
+                ]
 
         # Filtering the mismatching (input, target) image pair
         assert len(self.__HazyImages) == len(self.__ClearImages)

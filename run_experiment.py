@@ -2,6 +2,7 @@ import os
 from matplotlib import pyplot as plt
 import torch
 import torch.nn as nn
+from torchmetrics import MeanSquaredError
 import torchvision
 import torch.backends.cudnn as cudnn
 import torch.optim
@@ -72,6 +73,7 @@ def train(args):
         dehazingDatasetPath=dehazingDatasetPath,
         _type=DatasetType.Train,
         transformFn=Preprocess,
+        split=float(args["split"]),
         verbose=False,
     )
     validation_data = DehazingDataset(
@@ -194,6 +196,9 @@ if __name__ == "__main__":
     )
     ap.add_argument(
         "-lr", "--learning_rate", required=True, help="learning rate for training"
+    )
+    ap.add_argument(
+        "-s", "--split", required=True, help="split ratio for training and validation"
     )
 
     args = vars(ap.parse_args())
