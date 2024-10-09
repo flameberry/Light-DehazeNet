@@ -36,8 +36,8 @@ class DehazingDataset(Dataset):
         self.__HazyImages = []
         self.__ClearImages = []
 
-        variants = ("Haze1k_thin", "Haze1k_moderate", "Haze1k_thick")
-        # variants = ("Haze1k_thin",)
+        # variants = ("Haze1k_thin", "Haze1k_moderate", "Haze1k_thick")
+        variants = ("Haze1k_thick",)
 
         if _type == DatasetType.Validation:
             for variant in variants:

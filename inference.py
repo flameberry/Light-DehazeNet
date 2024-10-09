@@ -10,9 +10,11 @@ from DehazeDataset import DatasetType, DehazingDataset
 from run_experiment import Preprocess
 
 device = torch.device(
-    "cuda"
-    if torch.cuda.is_available()
-    else "mps" if torch.backends.mps.is_built() else "cpu"
+    # "cpu"
+    "mps"
+    # "cuda"
+    # if torch.cuda.is_available()
+    # else "mps" if torch.backends.mps.is_built() else "cpu"
 )
 
 
@@ -24,7 +26,11 @@ def image_haze_removal(input_image):
     hazy_image = hazy_image.to(device).unsqueeze(0)
 
     ld_net = lightdehazeNet.LightDehaze_Net().to(device)
-    ld_net.load_state_dict(torch.load("trained_weights/trained_LDNet.pth"))
+    ld_net.load_state_dict(
+        # torch.load("trained_weights/trained_LDNet_Moderate_SSIM.pth")
+        # torch.load("trained_weights/trained_LDNet_Thick_PSNR_20e.pth")
+        torch.load("trained_weights/trained_LDNet_Thin_PSNR.pth")
+    )
 
     dehaze_image = ld_net(hazy_image)
     return dehaze_image
@@ -46,7 +52,7 @@ def inference(args):
     )
 
     ld_net = lightdehazeNet.LightDehaze_Net().to(device)
-    ld_net.load_state_dict(torch.load("trained_weights/trained_LDNet.pth"))
+    ld_net.load_state_dict(torch.load("trained_weights/trained_LDNet_PSNR.pth"))
 
     print("SSIM\tSSIM_Previous\tPSNR\tPSNR_Previous")
 
@@ -92,11 +98,11 @@ def inference(args):
 
     fig_, ax_ = ssim.plot(ssim_values)
     fig_, ax_ = ssim.plot(ssim_old_values, ax=ax_)
-    plt.savefig("Inference_SSIM.png")
+    plt.savefig("Inference_Common.png")
 
     fig_, ax_1 = psnr.plot(psnr_values)
     fig_, ax_1 = psnr.plot(psnr_old_values, ax=ax_1)
-    plt.savefig("Inference_PSNR.png")
+    plt.savefig("Inference_Common.png")
 
     # Plot the ssim and psnr
     plt.show()

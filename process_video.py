@@ -47,7 +47,7 @@ if __name__ == "__main__":
         "--path",
         required=False,
         help="path to the video",
-        default="/Users/flameberry/Developer/Light-DehazeNet/SwingsHazy.mp4",
+        default="/Users/flameberry/Developer/Light-DehazeNet/AerialVideo.mp4",
     )
     args = vars(ap.parse_args())
     process_video(args)
